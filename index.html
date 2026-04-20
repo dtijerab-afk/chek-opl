@@ -322,7 +322,7 @@ CREATE POLICY "allow_all" ON evaluaciones
 // ════════════════════════════════════════════
 // DATA
 // ════════════════════════════════════════════
-const PASSWORDS = {'Atlántico':'3847','Bolívar':'6193','Santa Marta':'5728','master':'Dtb1234'};
+const PASSWORDS = {'Atlántico':'3847','Bolívar':'6193','Santa Marta':'5728','master':'1106'};
 
 const CL = {
   pdv:{title:'PUNTO DE VENTA',color:'#c0392b',key:'score_pdv',items:[
@@ -371,10 +371,12 @@ let S = {zona:null,isMaster:false,supaUrl:null,supaKey:null,items:{},photos:{},h
 // ════════════════════════════════════════════
 // BOOT
 // ════════════════════════════════════════════
+const SUPA_URL='https://nilammwpyurhlqvrfwmb.supabase.co';
+const SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pbGFtbXdweXVyaGxxdnJmd21iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY2MzIwMTIsImV4cCI6MjA5MjIwODAxMn0.mjzCDih22bWM4MbiSg5TEztV6Xm6Uh2eA6a_QBSbb2k';
+
 window.onload = ()=>{
-  const u=localStorage.getItem('opl_url'),k=localStorage.getItem('opl_key');
-  if(u&&k){S.supaUrl=u;S.supaKey=k;showScreen('zone');}
-  else showScreen('config');
+  S.supaUrl=SUPA_URL;S.supaKey=SUPA_KEY;
+  showScreen('zone');
   document.getElementById('ev-fecha').valueAsDate=new Date();
 };
 
@@ -497,7 +499,7 @@ function buildChecklist(){
         <div class="photo-row">
           <label class="photo-btn-lbl">
             📷 Foto/Evidencia
-            <input type="file" accept="image/*" capture="environment" onchange="addPhoto('${sk}','${item.id}',this)">
+            <input type="file" accept="image/*" onchange="addPhoto('${sk}','${item.id}',this)">
           </label>
           <div class="photo-thumbs" id="thumbs-${item.id}"></div>
         </div>
@@ -549,15 +551,21 @@ function compressImg(file,maxW,q){
     reader.onload=e=>{
       const img=new Image();
       img.onload=()=>{
-        const scale=Math.min(1,maxW/Math.max(img.width,img.height));
-        const c=document.createElement('canvas');
-        c.width=img.width*scale;c.height=img.height*scale;
-        c.getContext('2d').drawImage(img,0,0,c.width,c.height);
-        res(c.toDataURL('image/jpeg',q));
+        try{
+          const scale=Math.min(1,maxW/Math.max(img.width,img.height,1));
+          const c=document.createElement('canvas');
+          c.width=Math.round(img.width*scale);
+          c.height=Math.round(img.height*scale);
+          const ctx=c.getContext('2d');
+          ctx.drawImage(img,0,0,c.width,c.height);
+          res(c.toDataURL('image/jpeg',q));
+        }catch(err){rej(err);}
       };
-      img.onerror=rej;img.src=e.target.result;
+      img.onerror=()=>rej(new Error('load'));
+      img.src=e.target.result;
     };
-    reader.onerror=rej;reader.readAsDataURL(file);
+    reader.onerror=()=>rej(new Error('read'));
+    reader.readAsDataURL(file);
   });
 }
 
