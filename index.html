@@ -268,6 +268,7 @@ CREATE POLICY "allow_all" ON evaluaciones
   <div class="sticky-foot">
     <button class="btn btn-dark" style="flex:1;" onclick="showScreen('history')">← Atrás</button>
     <button class="btn btn-red" style="flex:1;" onclick="exportPDF(true)">📄 PDF</button>
+    <button class="btn" id="btn-delete" style="flex:1;background:#e74c3c;color:#fff;display:none;" onclick="askDelete()">🗑️ Borrar</button>
   </div>
 </div>
 
@@ -309,7 +310,18 @@ CREATE POLICY "allow_all" ON evaluaciones
   </div>
 </div>
 
-<!-- MODAL: PHOTO VIEWER -->
+<!-- MODAL: DELETE CONFIRM -->
+<div class="modal-bg" id="modal-delete">
+  <div class="modal">
+    <div style="text-align:center;font-size:40px;margin-bottom:10px;">🗑️</div>
+    <h2 style="margin-bottom:8px;text-align:center;">¿Borrar evaluación?</h2>
+    <p style="color:var(--gray);font-size:14px;margin-bottom:20px;text-align:center;">Esta acción no se puede deshacer.</p>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-out" style="flex:1;" onclick="closeModal('modal-delete')">Cancelar</button>
+      <button class="btn" style="flex:1;background:#e74c3c;color:#fff;" onclick="deleteEval()">Sí, borrar</button>
+    </div>
+  </div>
+</div>
 <div class="modal-bg" id="modal-photo" onclick="closeModal('modal-photo')">
   <div style="max-width:90%;max-height:80vh;border-radius:12px;overflow:hidden;">
     <img id="photo-viewer-img" style="width:100%;height:auto;display:block;">
@@ -790,6 +802,8 @@ function openDetail(i){
     </div>
     ${secsHTML}${sigHTML}<div style="height:20px;"></div>`;
   showScreen('detail');
+  // Mostrar botón borrar solo al master
+  document.getElementById('btn-delete').style.display=S.isMaster?'block':'none';
 }
 
 // ════════════════════════════════════════════
