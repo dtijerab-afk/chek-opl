@@ -266,9 +266,10 @@ CREATE POLICY "allow_all" ON evaluaciones
   <div class="hdr"><button class="back" onclick="showScreen('history')">←</button><div style="flex:1;"><div class="sub">Evaluación anterior</div><h1 id="det-title">—</h1></div></div>
   <div id="det-content"></div>
   <div class="sticky-foot">
-    <button class="btn btn-dark" style="flex:1;" onclick="showScreen('history')">← Atrás</button>
-    <button class="btn btn-red" style="flex:1;" onclick="exportPDF(true)">📄 PDF</button>
-    <button class="btn" id="btn-delete" style="flex:1;background:#e74c3c;color:#fff;display:none;" onclick="askDelete()">🗑️ Borrar</button>
+    <button class="btn btn-dark" style="flex:1;" onclick="histBack()">← Atrás</button>
+    <button class="btn" style="flex:1;background:#25D366;color:#fff;display:none;" id="btn-wa" onclick="shareWhatsApp(true)">📲 WA</button>
+    <button class="btn btn-red" style="flex:1;" id="btn-pdf-det" onclick="exportPDF(true)">📄 PDF</button>
+    <button class="btn" id="btn-delete" style="flex:1;background:#e74c3c;color:#fff;display:none;" onclick="askDelete()">🗑️</button>
   </div>
 </div>
 
@@ -308,6 +309,15 @@ CREATE POLICY "allow_all" ON evaluaciones
     <button class="btn btn-red" onclick="verifyPwd()">Entrar →</button>
     <button class="btn btn-out" style="margin-top:8px;" onclick="closeModal('modal-pwd')">Cancelar</button>
   </div>
+</div>
+
+<!-- SCREEN: TIMELINE -->
+<div class="screen" id="sc-timeline">
+  <div class="hdr">
+    <button class="back" onclick="showScreen('history')">←</button>
+    <div style="flex:1;"><div class="sub" id="tl-sub">Línea de tiempo</div><h1 id="tl-name">—</h1></div>
+  </div>
+  <div id="tl-content" style="padding:12px 14px 90px;"></div>
 </div>
 
 <!-- MODAL: DELETE CONFIRM -->
@@ -795,23 +805,27 @@ function drillT(tienda){HN.level=1;HN.tienda=tienda;renderHistLevel();}
 function renderHistOperadores(){
   const filtered=S.history.filter(e=>e.tienda===HN.tienda);
   const byO={};filtered.forEach(ev=>{if(!byO[ev.operador])byO[ev.operador]=[];byO[ev.operador].push(ev);});
+  if(!Object.keys(byO).length){document.getElementById('hist-list').innerHTML='<div class="no-data"><div class="nd-icon">📋</div><p>Sin operadores registrados.</p></div>';return;}
   document.getElementById('hist-list').innerHTML=Object.entries(byO).map(([opl,evals])=>{
     const latest=evals[0],cls=latest.clasificacion||'CRÍTICO',col=clsColor(cls),hc=cls==='BUENO'?'hi-b':cls==='ACEPTABLE'?'hi-a':'hi-c';
-    return `<div class="hist-item ${hc}" onclick="drillO('${opl.replace(/'/g,"\\'")}')">
-      <div>
-        <h3 style="font-size:16px;">${opl}</h3>
-        <p>${evals.length} evaluación${evals.length>1?'es':''} · Última: ${fDate(latest.fecha)}</p>
+    const avg=evals.reduce((s,e)=>s+(e.resultado||0),0)/evals.length;
+    const trend=evals.length>=2?(evals[0].resultado-evals[1].resultado):null;
+    const tStr=trend===null?'Primera eval':trend>0?`▲ +${trend.toFixed(1)}%`:trend<0?`▼ ${trend.toFixed(1)}%`:'→ Igual';
+    const tCol=trend===null?'#aaa':trend>0?'#27ae60':trend<0?'#e74c3c':'#aaa';
+    return `<div class="hist-item ${hc}" onclick="openTimeline('${opl.replace(/'/g,"\\'")}')">
+      <div style="flex:1;">
+        <h3 style="font-size:16px;">👤 ${opl}</h3>
+        <p>${evals.length} evaluación${evals.length>1?'es':''} · Prom: ${avg.toFixed(1)}%</p>
+        <p style="font-size:12px;color:${tCol};font-weight:700;margin-top:3px;">${tStr}</p>
       </div>
       <div style="text-align:right;">
         <div class="hi-score" style="color:${col};">${(latest.resultado||0).toFixed(1)}%</div>
         <div style="font-size:10px;font-weight:700;color:${col};">Última</div>
-        <div style="font-size:11px;color:#ccc;margin-top:4px;">›</div>
+        <div style="font-size:18px;color:#ccc;margin-top:4px;">›</div>
       </div>
     </div>`;
   }).join('');
 }
-
-function drillO(opl){HN.level=2;HN.operador=opl;renderHistLevel();}
 
 function renderHistEvals(){
   const filtered=S.history.filter(e=>e.tienda===HN.tienda&&e.operador===HN.operador);
