@@ -188,11 +188,7 @@ CREATE POLICY "allow_all" ON evaluaciones
       <div class="mi-info"><h3>Historial</h3><p>Ver y buscar evaluaciones anteriores</p></div>
       <div style="color:#ccc;font-size:22px;">›</div>
     </div>
-    <div class="menu-item" onclick="openComparativo()">
-      <div style="font-size:32px;">📈</div>
-      <div class="mi-info"><h3>Comparativo por Operador</h3><p>Evolución de resultados por OPL</p></div>
-      <div style="color:#ccc;font-size:22px;">›</div>
-    </div>
+
   </div>
   <div class="card" style="background:linear-gradient(135deg,#1a252f,#2c3e50);">
     <p style="color:rgba(255,255,255,.6);font-size:11px;margin-bottom:8px;">CLASIFICACIÓN</p>
@@ -256,9 +252,9 @@ CREATE POLICY "allow_all" ON evaluaciones
 
 <!-- HISTORY -->
 <div class="screen" id="sc-history">
-  <div class="hdr"><button class="back" onclick="showScreen('menu')">←</button><h1>Historial · <span id="hist-zona">—</span></h1></div>
-  <div class="search-wrap"><span class="search-icon">🔍</span><input type="text" id="hist-search" placeholder="Buscar operador o tienda..." oninput="filterHist()"></div>
-  <div id="hist-list" style="padding:6px 14px 14px;"></div>
+  <div class="hdr"><button class="back" onclick="histBack()">←</button><h1 id="hist-title">Historial</h1></div>
+  <div id="hist-breadcrumb" style="padding:8px 14px 0;font-size:12px;color:var(--gray);"></div>
+  <div id="hist-list" style="padding:8px 14px 14px;"></div>
 </div>
 
 <!-- DETAIL -->
@@ -449,8 +445,6 @@ function verifyPwd(){
 
 function enterZone(){
   document.getElementById('menu-zona').textContent=S.zona;
-  document.getElementById('hist-zona').textContent=S.isMaster?'Todas las zonas':S.zona;
-  document.getElementById('comp-zona').textContent=S.isMaster?'Todas las zonas':S.zona;
   document.getElementById('master-badge-wrap').style.display=S.isMaster?'block':'none';
   showScreen('menu');
 }
@@ -722,34 +716,114 @@ function renderResults(ev){
 }
 
 // ════════════════════════════════════════════
-// HISTORY
+// HISTORY — NAVEGACIÓN POR NIVELES
 // ════════════════════════════════════════════
+let HN={level:0,tienda:null,operador:null}; // histNav
+
 async function openHistory(){
+  HN={level:0,tienda:null,operador:null};
   showScreen('history');
-  document.getElementById('hist-list').innerHTML='<div class="loading"><div class="spin"></div><p>Cargando historial...</p></div>';
+  document.getElementById('hist-list').innerHTML='<div class="loading"><div class="spin"></div><p>Cargando...</p></div>';
   try{
-    const query=S.isMaster?`evaluaciones?order=created_at.desc&limit=300`:`evaluaciones?zona=eq.${encodeURIComponent(S.zona)}&order=created_at.desc&limit=200`;
-    const r=await supa('GET',query);
-    if(!r.ok)throw new Error();
-    S.history=await r.json();renderHist(S.history);
-  }catch(e){document.getElementById('hist-list').innerHTML='<div class="no-data"><div class="nd-icon">⚠️</div><p>Error al cargar historial.</p></div>';}
+    const q=S.isMaster?`evaluaciones?order=created_at.desc&limit=500`:`evaluaciones?zona=eq.${encodeURIComponent(S.zona)}&order=created_at.desc&limit=300`;
+    const r=await supa('GET',q);
+    if(!r.ok){const err=await r.text();throw new Error('Supabase: '+err);}
+    const data=await r.json();
+    S.history=data;
+    if(!data||!data.length){
+      document.getElementById('hist-list').innerHTML='<div class="no-data"><div class="nd-icon">📋</div><p>No hay evaluaciones aún en esta zona.</p></div>';
+      return;
+    }
+    renderHistLevel();
+  }catch(e){
+    console.error(e);
+    document.getElementById('hist-list').innerHTML=`<div class="no-data"><div class="nd-icon">⚠️</div><p>Error: ${e.message}</p><p style="font-size:11px;margin-top:8px;">Verifica la conexión a Supabase</p></div>`;
+  }
 }
 
-function renderHist(data){
-  if(!data||!data.length){document.getElementById('hist-list').innerHTML='<div class="no-data"><div class="nd-icon">📋</div><p>No hay evaluaciones aún.</p></div>';return;}
-  document.getElementById('hist-list').innerHTML=data.map((ev,i)=>{
-    const cls=ev.clasificacion||'CRÍTICO',col=clsColor(cls);
-    const hc=cls==='BUENO'?'hi-b':cls==='ACEPTABLE'?'hi-a':'hi-c';
-    return `<div class="hist-item ${hc}" onclick="openDetail(${i})">
-      <div><h3>${ev.operador}</h3><p>${ev.tienda} · ${fDate(ev.fecha)}</p>${S.isMaster?`<p style="font-size:11px;margin-top:2px;color:#888;">📍 ${ev.zona}</p>`:''}</div>
-      <div><div class="hi-score" style="color:${col};">${(ev.resultado||0).toFixed(1)}%</div><div style="font-size:10px;font-weight:700;color:${col};margin-top:2px;">${cls}</div></div>
+function histBack(){
+  if(HN.level===0)showScreen('menu');
+  else{HN.level--;if(HN.level<2)HN.operador=null;if(HN.level<1)HN.tienda=null;renderHistLevel();}
+}
+
+function renderHistLevel(){
+  // Breadcrumb
+  let bc=S.isMaster?'Todas las zonas':S.zona;
+  if(HN.tienda)bc+=` › ${HN.tienda}`;
+  if(HN.operador)bc+=` › ${HN.operador}`;
+  document.getElementById('hist-breadcrumb').textContent=bc;
+  // Title
+  const titles=['Tiendas','Operadores','Evaluaciones'];
+  document.getElementById('hist-title').textContent=titles[HN.level];
+  // Content
+  if(HN.level===0)renderHistTiendas();
+  else if(HN.level===1)renderHistOperadores();
+  else renderHistEvals();
+}
+
+function renderHistTiendas(){
+  const byT={};
+  S.history.forEach(ev=>{if(!byT[ev.tienda])byT[ev.tienda]=[];byT[ev.tienda].push(ev);});
+  if(!Object.keys(byT).length){document.getElementById('hist-list').innerHTML='<div class="no-data"><div class="nd-icon">📋</div><p>No hay evaluaciones aún.</p></div>';return;}
+  const sorted=Object.entries(byT).sort((a,b)=>b[1].length-a[1].length);
+  document.getElementById('hist-list').innerHTML=sorted.map(([tienda,evals])=>{
+    const avg=evals.reduce((s,e)=>s+(e.resultado||0),0)/evals.length;
+    const cls=classify(avg),col=clsColor(cls),hc=cls==='BUENO'?'hi-b':cls==='ACEPTABLE'?'hi-a':'hi-c';
+    const last=evals[0];
+    return `<div class="hist-item ${hc}" onclick="drillT('${tienda.replace(/'/g,"\\'")}')">
+      <div>
+        <h3 style="font-size:16px;">${tienda}</h3>
+        <p>${evals.length} evaluación${evals.length>1?'es':''} · Última: ${fDate(last.fecha)}</p>
+        ${S.isMaster?`<p style="font-size:11px;margin-top:2px;">${last.zona}</p>`:''}
+      </div>
+      <div style="text-align:right;">
+        <div class="hi-score" style="color:${col};">${avg.toFixed(1)}%</div>
+        <div style="font-size:10px;font-weight:700;color:${col};">Promedio</div>
+        <div style="font-size:11px;color:#ccc;margin-top:4px;">›</div>
+      </div>
     </div>`;
   }).join('');
 }
 
-function filterHist(){
-  const q=document.getElementById('hist-search').value.toLowerCase();
-  renderHist(S.history.filter(e=>e.operador.toLowerCase().includes(q)||e.tienda.toLowerCase().includes(q)||(e.zona||'').toLowerCase().includes(q)));
+function drillT(tienda){HN.level=1;HN.tienda=tienda;renderHistLevel();}
+
+function renderHistOperadores(){
+  const filtered=S.history.filter(e=>e.tienda===HN.tienda);
+  const byO={};filtered.forEach(ev=>{if(!byO[ev.operador])byO[ev.operador]=[];byO[ev.operador].push(ev);});
+  document.getElementById('hist-list').innerHTML=Object.entries(byO).map(([opl,evals])=>{
+    const latest=evals[0],cls=latest.clasificacion||'CRÍTICO',col=clsColor(cls),hc=cls==='BUENO'?'hi-b':cls==='ACEPTABLE'?'hi-a':'hi-c';
+    return `<div class="hist-item ${hc}" onclick="drillO('${opl.replace(/'/g,"\\'")}')">
+      <div>
+        <h3 style="font-size:16px;">${opl}</h3>
+        <p>${evals.length} evaluación${evals.length>1?'es':''} · Última: ${fDate(latest.fecha)}</p>
+      </div>
+      <div style="text-align:right;">
+        <div class="hi-score" style="color:${col};">${(latest.resultado||0).toFixed(1)}%</div>
+        <div style="font-size:10px;font-weight:700;color:${col};">Última</div>
+        <div style="font-size:11px;color:#ccc;margin-top:4px;">›</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function drillO(opl){HN.level=2;HN.operador=opl;renderHistLevel();}
+
+function renderHistEvals(){
+  const filtered=S.history.filter(e=>e.tienda===HN.tienda&&e.operador===HN.operador);
+  document.getElementById('hist-list').innerHTML=filtered.map(ev=>{
+    const cls=ev.clasificacion||'CRÍTICO',col=clsColor(cls),hc=cls==='BUENO'?'hi-b':cls==='ACEPTABLE'?'hi-a':'hi-c';
+    const idx=S.history.indexOf(ev);
+    return `<div class="hist-item ${hc}" onclick="openDetail(${idx})">
+      <div>
+        <h3 style="font-size:16px;">📅 ${fDate(ev.fecha)}</h3>
+        <p>Admin: ${ev.administrador||'—'}</p>
+      </div>
+      <div style="text-align:right;">
+        <div class="hi-score" style="color:${col};">${(ev.resultado||0).toFixed(1)}%</div>
+        <div style="font-size:11px;font-weight:700;color:${col};">${cls}</div>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 // ════════════════════════════════════════════
@@ -801,9 +875,9 @@ function openDetail(i){
       <p style="color:var(--gray);font-size:12px;">Admin: ${ev.administrador||'—'} ${S.isMaster?'· '+ev.zona:''}</p>
     </div>
     ${secsHTML}${sigHTML}<div style="height:20px;"></div>`;
+  const btnDel=document.getElementById('btn-delete');
+  if(btnDel)btnDel.style.display=S.isMaster?'block':'none';
   showScreen('detail');
-  // Mostrar botón borrar solo al master
-  document.getElementById('btn-delete').style.display=S.isMaster?'block':'none';
 }
 
 // ════════════════════════════════════════════
