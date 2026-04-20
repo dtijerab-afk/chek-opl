@@ -229,6 +229,10 @@ CREATE POLICY "allow_all" ON evaluaciones
         <div class="sig-wrap" style="height:110px;"><canvas id="sig-coord" height="110"></canvas><button class="sig-clear" onclick="clearSig('sig-coord')">Borrar</button></div>
       </div>
       <div class="fg">
+        <label>Operario (OPL evaluado)</label>
+        <div class="sig-wrap" style="height:110px;"><canvas id="sig-opl" height="110"></canvas><button class="sig-clear" onclick="clearSig('sig-opl')">Borrar</button></div>
+      </div>
+      <div class="fg">
         <label>Administrador en Turno</label>
         <div class="sig-wrap" style="height:110px;"><canvas id="sig-admin" height="110"></canvas><button class="sig-clear" onclick="clearSig('sig-admin')">Borrar</button></div>
       </div>
@@ -475,7 +479,7 @@ function goChecklist(){
   buildChecklist();
   document.getElementById('step-info').style.display='none';
   document.getElementById('step-check').style.display='block';
-  setTimeout(()=>{initSig('sig-coord');initSig('sig-admin');},200);
+  setTimeout(()=>{initSig('sig-coord');initSig('sig-opl');initSig('sig-admin');},200);
 }
 
 // ════════════════════════════════════════════
@@ -662,14 +666,14 @@ async function saveEval(){
     sec.items.forEach(item=>{const d=S.items[sk]||{};if(!d[item.id]||d[item.id].score===undefined)missing++;});
   });
   if(missing){toast(`⚠️ Faltan ${missing} ítem${missing>1?'s':''} por responder`);return;}
-  const sc=getSig('sig-coord'),sa=getSig('sig-admin');
-  if(!sc||!sa){toast('⚠️ Se requieren ambas firmas');return;}
+  const sc=getSig('sig-coord'),so=getSig('sig-opl'),sa=getSig('sig-admin');
+  if(!sc||!so||!sa){toast('⚠️ Se requieren las 3 firmas');return;}
   updatePreview();
   const scores={};Object.keys(CL).forEach(k=>{scores[k]=S._scores[k];});
   const ev={zona:S.zona,tienda:S.cur.tienda,operador:S.cur.operador,administrador:S.cur.administrador,fecha:S.cur.fecha,
     datos:{items:S.items,scores},
     score_pdv:scores.pdv,score_bodegas:scores.bodegas,score_opl:scores.opl,score_admin:scores.admin,
-    resultado:S._overall,clasificacion:S._cls,firma_coord:sc,firma_admin:sa};
+    resultado:S._overall,clasificacion:S._cls,firma_coord:sc,firma_opl:so,firma_admin:sa};
   toast('💾 Guardando...');
   try{
     const r=await supa('POST','evaluaciones',ev);
@@ -708,9 +712,10 @@ function renderResults(ev){
         <div><div style="font-size:10px;color:var(--gray);text-transform:uppercase;">Administrador</div><div style="font-weight:700;font-size:13px;">${ev.administrador}</div></div>
         <div><div style="font-size:10px;color:var(--gray);text-transform:uppercase;">Zona</div><div style="font-weight:700;font-size:13px;">${ev.zona}</div></div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-        <div><div style="font-size:10px;color:var(--gray);margin-bottom:4px;">FIRMA COORD. OPL</div><img src="${ev.firma_coord}" style="width:100%;border:1px solid #eee;border-radius:6px;height:60px;object-fit:contain;"></div>
-        <div><div style="font-size:10px;color:var(--gray);margin-bottom:4px;">FIRMA ADMIN TURNO</div><img src="${ev.firma_admin}" style="width:100%;border:1px solid #eee;border-radius:6px;height:60px;object-fit:contain;"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+        <div><div style="font-size:10px;color:var(--gray);margin-bottom:4px;">FIRMA COORD. OPL</div><img src="${ev.firma_coord}" style="width:100%;border:1px solid #eee;border-radius:6px;height:55px;object-fit:contain;"></div>
+        <div><div style="font-size:10px;color:var(--gray);margin-bottom:4px;">FIRMA OPERARIO</div><img src="${ev.firma_opl||ev.firma_coord}" style="width:100%;border:1px solid #eee;border-radius:6px;height:55px;object-fit:contain;"></div>
+        <div><div style="font-size:10px;color:var(--gray);margin-bottom:4px;">FIRMA ADMIN</div><img src="${ev.firma_admin}" style="width:100%;border:1px solid #eee;border-radius:6px;height:55px;object-fit:contain;"></div>
       </div>
     </div>`;
 }
