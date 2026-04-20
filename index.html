@@ -495,10 +495,8 @@ function buildChecklist(){
         <textarea class="chk-obs" placeholder="Observación (opcional)..."
           oninput="setObs('${sk}','${item.id}',this.value);this.style.height='';this.style.height=this.scrollHeight+'px'"></textarea>
         <div class="photo-row">
-          <label class="photo-btn-lbl">
-            📷 Foto/Evidencia
-            <input type="file" accept="image/*" onchange="addPhoto('${sk}','${item.id}',this)">
-          </label>
+          <button type="button" class="photo-btn-lbl" onclick="document.getElementById('fi-${item.id}').click()">📷 Agregar foto</button>
+          <input type="file" id="fi-${item.id}" accept="image/*" style="display:none;" onchange="addPhoto('${sk}','${item.id}',this)">
           <div class="photo-thumbs" id="thumbs-${item.id}"></div>
         </div>
       </div>`;
@@ -547,23 +545,25 @@ async function addPhoto(sk,id,input){
 
 function compressImg(file){
   return new Promise((resolve,reject)=>{
-    const maxW=800,q=0.65;
-    const url=URL.createObjectURL(file);
-    const img=new Image();
-    img.onload=()=>{
-      URL.revokeObjectURL(url);
-      const scale=Math.min(1,maxW/Math.max(img.naturalWidth||img.width,img.naturalHeight||img.height,1));
-      const w=Math.round((img.naturalWidth||img.width)*scale);
-      const h=Math.round((img.naturalHeight||img.height)*scale);
-      const canvas=document.createElement('canvas');
-      canvas.width=w;canvas.height=h;
-      const ctx=canvas.getContext('2d');
-      ctx.drawImage(img,0,0,w,h);
-      try{resolve(canvas.toDataURL('image/jpeg',q));}
-      catch(e){reject(e);}
+    const reader=new FileReader();
+    reader.onload=function(e){
+      const dataUrl=e.target.result;
+      const img=new Image();
+      img.onload=function(){
+        const maxW=800;
+        const scale=Math.min(1,maxW/Math.max(img.width,img.height,1));
+        const w=Math.round(img.width*scale);
+        const h=Math.round(img.height*scale);
+        const canvas=document.createElement('canvas');
+        canvas.width=w;canvas.height=h;
+        canvas.getContext('2d').drawImage(img,0,0,w,h);
+        resolve(canvas.toDataURL('image/jpeg',0.65));
+      };
+      img.onerror=function(){resolve(dataUrl);}; // si falla compresión, usa original
+      img.src=dataUrl;
     };
-    img.onerror=e=>{URL.revokeObjectURL(url);reject(new Error('No se pudo cargar imagen'));};
-    img.src=url;
+    reader.onerror=function(){reject(new Error('No se pudo leer el archivo'));};
+    reader.readAsDataURL(file);
   });
 }
 
