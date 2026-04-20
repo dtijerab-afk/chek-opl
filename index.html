@@ -854,8 +854,12 @@ function renderHistEvals(){
 // ════════════════════════════════════════════
 // DETAIL
 // ════════════════════════════════════════════
+let _detFrom='history'; // para saber de dónde vino el detalle
+function detBack(){showScreen(_detFrom==='timeline'?'timeline':'history');}
+
 function openDetail(i){
   const ev=S.history[i];S.selEval=ev;
+  _detFrom=document.getElementById('sc-timeline').classList.contains('active')?'timeline':'history';
   document.getElementById('det-title').textContent=ev.operador;
   const cls=ev.clasificacion||'CRÍTICO',col=clsColor(cls);
   const scores=ev.datos?.scores||{};
