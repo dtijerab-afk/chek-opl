@@ -461,36 +461,45 @@ async function addPhoto(sk,id,input){
 
 function readAndCompress(file){
   return new Promise((resolve)=>{
+    // Método 1: URL.createObjectURL (más compatible con Safari iOS)
+    try{
+      const url=URL.createObjectURL(file);
+      const img=new Image();
+      img.onload=function(){
+        try{
+          const maxW=800;
+          const scale=Math.min(1,maxW/Math.max(img.width||1,img.height||1));
+          const w=Math.max(1,Math.round(img.width*scale));
+          const h=Math.max(1,Math.round(img.height*scale));
+          const canvas=document.createElement('canvas');
+          canvas.width=w;canvas.height=h;
+          canvas.getContext('2d').drawImage(img,0,0,w,h);
+          URL.revokeObjectURL(url);
+          resolve(canvas.toDataURL('image/jpeg',0.6));
+        }catch(err){
+          URL.revokeObjectURL(url);
+          // Si falla canvas, devolver url base64 via FileReader
+          fallbackRead(file,resolve);
+        }
+      };
+      img.onerror=function(){
+        URL.revokeObjectURL(url);
+        fallbackRead(file,resolve);
+      };
+      img.src=url;
+    }catch(err){
+      fallbackRead(file,resolve);
+    }
+  });
+}
+
+function fallbackRead(file,resolve){
+  try{
     const reader=new FileReader();
-    reader.onload=function(e){
-      const dataUrl=e.target.result;
-      // Intentar comprimir
-      try{
-        const img=new Image();
-        img.onload=function(){
-          try{
-            const maxW=800;
-            const scale=Math.min(1,maxW/Math.max(img.width||1,img.height||1));
-            const w=Math.max(1,Math.round(img.width*scale));
-            const h=Math.max(1,Math.round(img.height*scale));
-            const canvas=document.createElement('canvas');
-            canvas.width=w;canvas.height=h;
-            const ctx=canvas.getContext('2d');
-            ctx.drawImage(img,0,0,w,h);
-            const result=canvas.toDataURL('image/jpeg',0.6);
-            resolve(result);
-          }catch(err){
-            // Si falla compresión, usar original
-            resolve(dataUrl);
-          }
-        };
-        img.onerror=function(){resolve(dataUrl);};
-        img.src=dataUrl;
-      }catch(err){resolve(dataUrl);}
-    };
+    reader.onload=function(e){resolve(e.target.result||'');};
     reader.onerror=function(){resolve('');};
     reader.readAsDataURL(file);
-  });
+  }catch(e){resolve('');}
 }
 function renderThumbs(id){
   const wrap=document.getElementById('thumbs-'+id);if(!wrap)return;
